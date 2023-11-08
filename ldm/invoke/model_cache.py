@@ -62,7 +62,7 @@ class ModelCache(object):
             if model_name not in self.models: # make room for a new one
                 self._make_cache_room()
             self.offload_model(self.current_model)
-        
+
         if model_name in self.models:
             requested_model = self.models[model_name]['model']
             print(f'>> Retrieving model {model_name} from system RAM cache')
@@ -73,18 +73,19 @@ class ModelCache(object):
         else: # we're about to load a new model, so potentially offload the least recently used one
             try:
                 requested_model, width, height, hash = self._load_model(model_name)
-                self.models[model_name] = {}
-                self.models[model_name]['model'] = requested_model
-                self.models[model_name]['width'] = width
-                self.models[model_name]['height'] = height
-                self.models[model_name]['hash'] = hash
+                self.models[model_name] = {
+                    'model': requested_model,
+                    'width': width,
+                    'height': height,
+                    'hash': hash,
+                }
             except Exception as e:
                 print(f'** model {model_name} could not be loaded: {str(e)}')
                 print(traceback.format_exc())
                 print(f'** restoring {self.current_model}')
                 self.get_model(self.current_model)
                 return None
-        
+
         self.current_model = model_name
         self._push_newest_model(model_name)
         return {
@@ -99,10 +100,14 @@ class ModelCache(object):
         Returns the name of the default model, or None
         if none is defined.
         '''
-        for model_name in self.config:
-            if self.config[model_name].get('default',False):
-                return model_name
-        return None
+        return next(
+            (
+                model_name
+                for model_name in self.config
+                if self.config[model_name].get('default', False)
+            ),
+            None,
+        )
 
     def set_default_model(self,model_name:str):
         '''
@@ -137,9 +142,7 @@ class ModelCache(object):
                 status = 'cached'
             else:
                 status = 'not loaded'
-            result[name]={}
-            result[name]['status']=status
-            result[name]['description']=description
+            result[name] = {'status': status, 'description': description}
         return result
     
     def print_models(self):
@@ -231,7 +234,7 @@ class ModelCache(object):
             if os.path.exists(vae):
                 print(f'   | Loading VAE weights from: {vae}')
                 vae_ckpt = torch.load(vae, map_location="cpu")
-                vae_dict = {k: v for k, v in vae_ckpt["state_dict"].items() if k[0:4] != "loss"}
+                vae_dict = {k: v for k, v in vae_ckpt["state_dict"].items() if k[:4] != "loss"}
                 model.first_stage_model.load_state_dict(vae_dict, strict=False)
             else:
                 print(f'   | VAE file {vae} not found. Skipping.')
@@ -239,7 +242,7 @@ class ModelCache(object):
         model.to(self.device)
         # model.to doesn't change the cond_stage_model.device used to move the tokenizer output, so set it here
         model.cond_stage_model.device = self.device
-        
+
         model.eval()
 
         for m in model.modules():
@@ -248,7 +251,7 @@ class ModelCache(object):
 
         # usage statistics
         toc = time.time()
-        print(f'>> Model loaded in', '%4.2fs' % (toc - tic))
+        print('>> Model loaded in', '%4.2fs' % (toc - tic))
         if self._has_cuda():
             print(
                 '>> Max VRAM used to load the model:',
@@ -320,14 +323,13 @@ class ModelCache(object):
         self.models.pop(model_name,None)
         
     def _model_to_cpu(self,model):
-        if self.device != 'cpu':
-            model.cond_stage_model.device = 'cpu'
-            model.first_stage_model.to('cpu')
-            model.cond_stage_model.to('cpu') 
-            model.model.to('cpu')
-            return model.to('cpu')
-        else:
+        if self.device == 'cpu':
             return model
+        model.cond_stage_model.device = 'cpu'
+        model.first_stage_model.to('cpu')
+        model.cond_stage_model.to('cpu')
+        model.model.to('cpu')
+        return model.to('cpu')
 
     def _model_from_cpu(self,model):
         if self.device != 'cpu':
@@ -363,12 +365,12 @@ class ModelCache(object):
         dirname    = os.path.dirname(path)
         basename   = os.path.basename(path)
         base, _    = os.path.splitext(basename)
-        hashpath   = os.path.join(dirname,base+'.sha256')
+        hashpath = os.path.join(dirname, f'{base}.sha256')
         if os.path.exists(hashpath) and os.path.getmtime(path) <= os.path.getmtime(hashpath):
             with open(hashpath) as f:
                 hash = f.read()
             return hash
-        print(f'>> Calculating sha256 hash of weights file')
+        print('>> Calculating sha256 hash of weights file')
         tic = time.time()
         sha = hashlib.sha256()
         sha.update(data)

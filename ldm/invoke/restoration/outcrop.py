@@ -67,9 +67,8 @@ class Outcrop(object):
         adjacent image.
         '''
         image = self.image
-        for direction in extents:
+        for direction, pixels in extents.items():
             assert direction in ['top', 'left', 'bottom', 'right'],'Direction must be one of "top", "left", "bottom", "right"'
-            pixels = extents[direction]
             # round pixels up to the nearest 64
             pixels = math.ceil(pixels/64) * 64
             print(f'>> extending image {direction}ward by {pixels} pixels')

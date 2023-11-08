@@ -60,13 +60,13 @@ class Inpaint(Img2Img):
         # Find any mask tiles with any fully transparent pixels (we will be replacing these later)
         tmask_shape = tiles_mask.shape
         tiles_mask = tiles_mask.reshape(math.prod(tiles_mask.shape))
-        n,ny = (math.prod(tmask_shape[0:2])), math.prod(tmask_shape[2:])
+        n,ny = math.prod(tmask_shape[:2]), math.prod(tmask_shape[2:])
         tiles_mask = (tiles_mask > 0)
         tiles_mask = tiles_mask.reshape((n,ny)).all(axis = 1)
 
         # Get RGB tiles in single array and filter by the mask
         tshape = tiles.shape
-        tiles_all = tiles.reshape((math.prod(tiles.shape[0:2]), * tiles.shape[2:]))
+        tiles_all = tiles.reshape((math.prod(tiles.shape[:2]), * tiles.shape[2:]))
         filtered_tiles = tiles_all[tiles_mask]
 
         if len(filtered_tiles) == 0:
@@ -80,10 +80,14 @@ class Inpaint(Img2Img):
         # Convert back to an image
         tiles_all = tiles_all.reshape(tshape)
         tiles_all = tiles_all.swapaxes(1,2)
-        st = tiles_all.reshape((math.prod(tiles_all.shape[0:2]), math.prod(tiles_all.shape[2:4]), tiles_all.shape[4]))
-        si = Image.fromarray(st, mode='RGBA')
-
-        return si
+        st = tiles_all.reshape(
+            (
+                math.prod(tiles_all.shape[:2]),
+                math.prod(tiles_all.shape[2:4]),
+                tiles_all.shape[4],
+            )
+        )
+        return Image.fromarray(st, mode='RGBA')
 
 
     def mask_edge(self, mask: Image, edge_size: int, edge_blur: int) -> Image:
@@ -98,8 +102,8 @@ class Inpaint(Img2Img):
         # Combine
         npmask = npgradient + npedge
 
-        # Expand 
-        npmask = cv.dilate(npmask, np.ones((3,3), np.uint8), iterations = int(edge_size / 2))
+        # Expand
+        npmask = cv.dilate(npmask, np.ones((3,3), np.uint8), iterations=edge_size // 2)
 
         new_mask = Image.fromarray(npmask)
 
@@ -134,9 +138,7 @@ class Inpaint(Img2Img):
             seam_size = 0
         )
 
-        result = make_image(noise)
-
-        return result
+        return make_image(noise)
 
 
     @torch.no_grad()
@@ -202,11 +204,9 @@ class Inpaint(Img2Img):
 
         # klms samplers not supported yet, so ignore previous sampler
         if isinstance(sampler,KSampler):
-            print(
-                f">> Using recommended DDIM sampler for inpainting."
-            )
+            print(">> Using recommended DDIM sampler for inpainting.")
             sampler = DDIMSampler(self.model, device=self.model.device)
-        
+
         sampler.make_schedule(
             ddim_num_steps=steps, ddim_eta=ddim_eta, verbose=False
         )
@@ -309,7 +309,11 @@ class Inpaint(Img2Img):
         # Blur the mask out (into init image) by specified amount
         if mask_blur_radius > 0:
             nm = np.asarray(pil_init_mask, dtype=np.uint8)
-            nmd = cv.erode(nm, kernel=np.ones((3,3), dtype=np.uint8), iterations=int(mask_blur_radius / 2))
+            nmd = cv.erode(
+                nm,
+                kernel=np.ones((3, 3), dtype=np.uint8),
+                iterations=mask_blur_radius // 2,
+            )
             pmd = Image.fromarray(nmd, mode='L')
             blurred_init_mask = pmd.filter(ImageFilter.BoxBlur(mask_blur_radius))
         else:
@@ -320,7 +324,7 @@ class Inpaint(Img2Img):
         return matched_result
 
 
-    def sample_to_image(self, samples)->Image.Image:
+    def sample_to_image(self, samples) -> Image.Image:
         gen_result = super().sample_to_image(samples).convert('RGB')
 
         # Resize if necessary
@@ -329,7 +333,7 @@ class Inpaint(Img2Img):
 
         if self.pil_image is None or self.pil_mask is None:
             return gen_result
-        
-        corrected_result = self.color_correct(gen_result, self.pil_image, self.pil_mask, self.mask_blur_radius)
 
-        return corrected_result
+        return self.color_correct(
+            gen_result, self.pil_image, self.pil_mask, self.mask_blur_radius
+        )

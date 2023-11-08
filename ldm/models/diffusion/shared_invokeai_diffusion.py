@@ -88,9 +88,7 @@ class InvokeAIDiffuserComponent:
 
         # to scale how much effect conditioning has, calculate the changes it does and then scale that
         scaled_delta = (conditioned_next_x - unconditioned_next_x) * unconditional_guidance_scale
-        combined_next_x = unconditioned_next_x + scaled_delta
-
-        return combined_next_x
+        return unconditioned_next_x + scaled_delta
 
 
     # methods below are called from do_diffusion_step and should be considered private to this class.

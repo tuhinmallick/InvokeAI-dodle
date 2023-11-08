@@ -92,8 +92,7 @@ class ApiImagesMetadata(MethodView):
 
   def get(self, dreamId):
     meta = self.__storage.getMetadata(dreamId)
-    j = {} if meta is None else meta.__dict__
-    return j
+    return {} if meta is None else meta.__dict__
 
 
 class ApiIntermediates(MethodView):

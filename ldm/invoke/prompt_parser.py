@@ -85,10 +85,10 @@ class Fragment(BaseFragment):
             #print("Fragment converting escaped \( \) \\\" into ( ) \"")
             text = text.replace('\\(', '(').replace('\\)', ')').replace('\\"', '"')
         self.text = text
-        self.weight = float(weight)
+        self.weight = weight
 
     def __repr__(self):
-        return "Fragment:'"+self.text+"'@"+str(self.weight)
+        return f"Fragment:'{self.text}'@{str(self.weight)}"
     def __eq__(self, other):
         return type(other) is Fragment \
             and other.text == self.text \
@@ -143,8 +143,8 @@ class CrossAttentionControlSubstitute(CrossAttentionControlledFragment):
         ])
     """
     def __init__(self, original: list, edited: list, options: dict=None):
-        self.original = original if len(original)>0 else [Fragment('')]
-        self.edited = edited if len(edited)>0 else [Fragment('')]
+        self.original = original if original else [Fragment('')]
+        self.edited = edited if edited else [Fragment('')]
 
         default_options = {
             's_start': 0.0,
@@ -201,7 +201,11 @@ class Conjunction():
                           or type(x) is Blend
                           or type(x) is FlattenedPrompt)
                       else Prompt(x) for x in prompts]
-        self.weights = [1.0]*len(self.prompts) if (weights is None or len(weights)==0) else list(weights)
+        self.weights = (
+            [1.0] * len(self.prompts)
+            if weights is None or not weights
+            else list(weights)
+        )
         if len(self.weights) != len(self.prompts):
             raise PromptParser.ParsingException(f"while parsing Conjunction: mismatched parts/weights counts {prompts}, {weights}")
         self.type = 'AND'
@@ -222,7 +226,11 @@ class Blend():
     """
     def __init__(self, prompts: list, weights: list[float], normalize_weights: bool=True):
         #print("making Blend with prompts", prompts, "and weights", weights)
-        weights = [1.0]*len(prompts) if (weights is None or len(weights)==0) else list(weights)
+        weights = (
+            [1.0] * len(prompts)
+            if weights is None or not weights
+            else list(weights)
+        )
         if len(prompts) != len(weights):
             raise PromptParser.ParsingException(f"while parsing Blend: mismatched prompts/weights counts {prompts}, {weights}")
         for p in prompts:
@@ -230,7 +238,9 @@ class Blend():
                 raise(PromptParser.ParsingException(f"{type(p)} cannot be added to a Blend, only Prompts or FlattenedPrompts"))
             for f in p.children:
                 if isinstance(f, CrossAttentionControlSubstitute):
-                    raise(PromptParser.ParsingException(f"while parsing Blend: sorry, you cannot do .swap() as part of a Blend"))
+                    raise PromptParser.ParsingException(
+                        "while parsing Blend: sorry, you cannot do .swap() as part of a Blend"
+                    )
 
         # upcast all lists to Prompt objects
         self.prompts = [x if (type(x) is Prompt or type(x) is FlattenedPrompt)
@@ -253,7 +263,7 @@ class PromptParser():
 
     class UnrecognizedOperatorException(ParsingException):
         def __init__(self, operator:str):
-            super().__init__("Unrecognized operator: " + operator)
+            super().__init__(f"Unrecognized operator: {operator}")
 
     def __init__(self, attention_plus_base=1.1, attention_minus_base=0.9):
 
@@ -267,7 +277,7 @@ class PromptParser():
         '''
         #print(f"!!parsing '{prompt}'")
 
-        if len(prompt.strip()) == 0:
+        if not prompt.strip():
             return Conjunction(prompts=[FlattenedPrompt([('', 1.0)])], weights=[1.0])
 
         root = self.conjunction.parse_string(prompt)
@@ -309,52 +319,71 @@ class PromptParser():
                     edited_fused = fuse_fragments(x.edited)
                     result.append(CrossAttentionControlSubstitute(original_fused, edited_fused, options=x.options))
                 else:
-                    last_weight = result[-1].weight \
-                        if (len(result) > 0 and not issubclass(type(result[-1]), CrossAttentionControlledFragment)) \
+                    last_weight = (
+                        result[-1].weight
+                        if result
+                        and not issubclass(
+                            type(result[-1]), CrossAttentionControlledFragment
+                        )
                         else None
+                    )
                     this_text = x.text
                     this_weight = x.weight
                     if last_weight is not None and last_weight == this_weight:
                         last_text = result[-1].text
-                        result[-1] = Fragment(last_text + ' ' + this_text, last_weight)
+                        result[-1] = Fragment(f'{last_text} {this_text}', last_weight)
                     else:
                         result.append(x)
             return result
 
         def flatten_internal(node, weight_scale, results, prefix):
-            verbose and print(prefix + "flattening", node, "...")
+            verbose and print(f"{prefix}flattening", node, "...")
             if type(node) is pp.ParseResults or type(node) is list:
                 for x in node:
-                    results = flatten_internal(x, weight_scale, results, prefix+' pr ')
-                #print(prefix, " ParseResults expanded, results is now", results)
+                    results = flatten_internal(x, weight_scale, results, f'{prefix} pr ')
+                        #print(prefix, " ParseResults expanded, results is now", results)
             elif type(node) is Attention:
                 # if node.weight < 1:
                 # todo: inject a blend when flattening attention with weight <1"
                 for index,c in enumerate(node.children):
-                    results = flatten_internal(c, weight_scale * node.weight, results, prefix + f" att{index} ")
+                    results = flatten_internal(
+                        c,
+                        weight_scale * node.weight,
+                        results,
+                        f"{prefix} att{index} ",
+                    )
             elif type(node) is Fragment:
                 results += [Fragment(node.text, node.weight*weight_scale)]
             elif type(node) is CrossAttentionControlSubstitute:
-                original = flatten_internal(node.original, weight_scale, [], prefix + ' CAo ')
-                edited = flatten_internal(node.edited, weight_scale, [], prefix + ' CAe ')
+                original = flatten_internal(node.original, weight_scale, [], f'{prefix} CAo ')
+                edited = flatten_internal(node.edited, weight_scale, [], f'{prefix} CAe ')
                 results += [CrossAttentionControlSubstitute(original, edited, options=node.options)]
             elif type(node) is Blend:
                 flattened_subprompts = []
                 #print(" flattening blend with prompts", node.prompts, "weights", node.weights)
                 for prompt in node.prompts:
                     # prompt is a list
-                    flattened_subprompts = flatten_internal(prompt, weight_scale, flattened_subprompts, prefix+'B ')
+                    flattened_subprompts = flatten_internal(
+                        prompt, weight_scale, flattened_subprompts, f'{prefix}B '
+                    )
                 results += [Blend(prompts=flattened_subprompts, weights=node.weights, normalize_weights=node.normalize_weights)]
             elif type(node) is Prompt:
                 #print(prefix + "about to flatten Prompt with children", node.children)
                 flattened_prompt = []
                 for child in node.children:
-                    flattened_prompt = flatten_internal(child, weight_scale, flattened_prompt, prefix+'P ')
+                    flattened_prompt = flatten_internal(
+                        child, weight_scale, flattened_prompt, f'{prefix}P '
+                    )
                 results += [FlattenedPrompt(parts=fuse_fragments(flattened_prompt))]
-                #print(prefix + "after flattening Prompt, results is", results)
+                        #print(prefix + "after flattening Prompt, results is", results)
             else:
                 raise PromptParser.ParsingException(f"unhandled node type {type(node)} when flattening {node}")
-            verbose and print(prefix + "-> after flattening", type(node).__name__, "results is", results)
+            verbose and print(
+                f"{prefix}-> after flattening",
+                type(node).__name__,
+                "results is",
+                results,
+            )
             return results
 
         verbose and print("flattening", root)
@@ -385,7 +414,7 @@ def build_parser_syntax(attention_plus_base: float, attention_minus_base: float)
             elif type(weight_raw) is str:
                 base = attention_plus_base if weight_raw[0] == '+' else attention_minus_base
                 weight = pow(base, len(weight_raw))
-            return Attention(weight=weight, children=[x for x in x[0]])
+            return Attention(weight=weight, children=list(x[0]))
         elif operator == '.swap':
             return CrossAttentionControlSubstitute(target, arguments, x.as_dict())
         elif operator == '.blend':
@@ -397,7 +426,7 @@ def build_parser_syntax(attention_plus_base: float, attention_minus_base: float)
                 weights_raw = weights_raw[:-1]
             weights = [float(w[0]) for w in weights_raw]
             return Blend(prompts=prompts, weights=weights, normalize_weights=normalize_weights)
-        elif operator == '.and' or operator == '.add':
+        elif operator in ['.and', '.add']:
             prompts = [Prompt(p) for p in x[0]]
             weights = [float(w[0]) for w in x[2]]
             return Conjunction(prompts=prompts, weights=weights)
@@ -456,7 +485,7 @@ def build_parser_syntax(attention_plus_base: float, attention_minus_base: float)
              pp.Combine(pp.Optional("-")+pp.Word(pp.nums)).set_parse_action(pp.token_map(float))
 
     # for options
-    keyword = pp.Word(pp.alphanums + '_')
+    keyword = pp.Word(f'{pp.alphanums}_')
 
     # a word that absolutely does not contain any meaningful syntax
     non_syntax_word = pp.Combine(pp.OneOrMore(pp.MatchFirst([
@@ -656,10 +685,10 @@ def log_tokenization(text, model, display_label=None):
         # alternate color
         s = (usedTokens % 6) + 1
         if i < model.cond_stage_model.max_length:
-            tokenized = tokenized + f"\x1b[0;3{s};40m{token}"
+            tokenized = f"{tokenized}\x1b[0;3{s};40m{token}"
             usedTokens += 1
         else:  # over max token length
-            discarded = discarded + f"\x1b[0;3{s};40m{token}"
+            discarded = f"{discarded}\x1b[0;3{s};40m{token}"
     print(f"\n>> Tokens {display_label or ''} ({usedTokens}):\n{tokenized}\x1b[0m")
     if discarded != "":
         print(

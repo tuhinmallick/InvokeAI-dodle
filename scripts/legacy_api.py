@@ -116,7 +116,7 @@ def main_loop(t2i, outdir, prompt_as_dir, parser, infile):
     """prompt/read/execute loop"""
     done = False
     path_filter = re.compile(r'[<>:"/\\|?*]')
-    last_results = list()
+    last_results = []
 
     # os.pathconf is not available on Windows
     if hasattr(os, 'pathconf'):
@@ -129,13 +129,9 @@ def main_loop(t2i, outdir, prompt_as_dir, parser, infile):
     while not done:
         try:
             command = get_next_command(infile)
-        except EOFError:
+        except (EOFError, KeyboardInterrupt):
             done = True
             continue
-        except KeyboardInterrupt:
-            done = True
-            continue
-
         # skip empty lines
         if not command.strip():
             continue
@@ -150,7 +146,7 @@ def main_loop(t2i, outdir, prompt_as_dir, parser, infile):
         try:
             elements = shlex.split(command)
         except ValueError as e:
-            print(str(e))
+            print(e)
             continue
 
         if elements[0] == 'q':
@@ -174,7 +170,7 @@ def main_loop(t2i, outdir, prompt_as_dir, parser, infile):
             else:
                 switches[0] += el
                 switches[0] += ' '
-        switches[0] = switches[0][: len(switches[0]) - 1]
+        switches[0] = switches[0][:-1]
 
         try:
             opt = parser.parse_args(switches)
@@ -226,11 +222,7 @@ def main_loop(t2i, outdir, prompt_as_dir, parser, infile):
                 parts.append([seed, weight])
             if broken:
                 continue
-            if len(parts) > 0:
-                opt.with_variations = parts
-            else:
-                opt.with_variations = None
-
+            opt.with_variations = parts if parts else None
         if opt.outdir:
             if not os.path.exists(opt.outdir):
                 os.makedirs(opt.outdir)
@@ -244,7 +236,7 @@ def main_loop(t2i, outdir, prompt_as_dir, parser, infile):
             subdir = subdir[:(path_max - 27 - len(os.path.abspath(outdir)))]
             current_outdir = os.path.join(outdir, subdir)
 
-            print('Writing files to directory: "' + current_outdir + '"')
+            print(f'Writing files to directory: "{current_outdir}"')
 
             # make sure the output directory exists
             if not os.path.exists(current_outdir):
@@ -298,7 +290,7 @@ def main_loop(t2i, outdir, prompt_as_dir, parser, infile):
 
             t2i.prompt2image(image_callback=image_writer, **vars(opt))
 
-            if do_grid and len(grid_images) > 0:
+            if do_grid and grid_images:
                 grid_img   = make_grid(list(grid_images.values()))
                 grid_seeds = list(grid_images.keys())
                 first_seed = last_results[0][1]
@@ -312,11 +304,7 @@ def main_loop(t2i, outdir, prompt_as_dir, parser, infile):
                 )
                 results = [[path, metadata_prompt]]
 
-        except AssertionError as e:
-            print(e)
-            continue
-
-        except OSError as e:
+        except (AssertionError, OSError) as e:
             print(e)
             continue
 

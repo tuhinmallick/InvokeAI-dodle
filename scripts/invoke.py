@@ -126,7 +126,7 @@ def main_loop(gen, opt):
     done = False
     doneAfterInFile = infile is not None
     path_filter = re.compile(r'[<>:"/\\|?*]')
-    last_results = list()
+    last_results = []
     model_config = OmegaConf.load(opt.conf)
 
     # The readline completer reads history from the .dream_history file located in the
@@ -239,7 +239,7 @@ def main_loop(gen, opt):
             subdir = subdir[:(path_max - 39 - len(os.path.abspath(opt.outdir)))]
             current_outdir = os.path.join(opt.outdir, subdir)
 
-            print('Writing files to directory: "' + current_outdir + '"')
+            print(f'Writing files to directory: "{current_outdir}"')
 
             # make sure the output directory exists
             if not os.path.exists(current_outdir):
@@ -329,7 +329,7 @@ def main_loop(gen, opt):
                             tool,
                             formatted_dream_prompt,
                         )                           
-                        
+
                     if (not postprocessed) or opt.save_original:
                         # only append to results if we didn't overwrite an earlier output
                         results.append([path, formatted_dream_prompt])
@@ -361,7 +361,7 @@ def main_loop(gen, opt):
                 print(f'>> generating masks from {opt.prompt}')
                 do_textmask(gen, opt, image_writer)
 
-            if opt.grid and len(grid_images) > 0:
+            if opt.grid and grid_images:
                 grid_img   = make_grid(list(grid_images.values()))
                 grid_seeds = list(grid_images.keys())
                 first_seed = last_results[0][1]
@@ -381,11 +381,7 @@ def main_loop(gen, opt):
                 )
                 results = [[path, formatted_dream_prompt]]
 
-        except AssertionError as e:
-            print(e)
-            continue
-
-        except OSError as e:
+        except (AssertionError, OSError) as e:
             print(e)
             continue
 
@@ -491,11 +487,10 @@ def do_command(command:str, gen, opt:Args, completer) -> tuple:
 
 
 def add_weights_to_config(model_path:str, gen, opt, completer):
-    print(f'>> Model import in process. Please enter the values needed to configure this model:')
+    print(
+        '>> Model import in process. Please enter the values needed to configure this model:'
+    )
     print()
-
-    new_config = {}
-    new_config['weights'] = model_path
 
     done = False
     while not done:
@@ -504,11 +499,13 @@ def add_weights_to_config(model_path:str, gen, opt, completer):
             print('** model name must contain only words, digits and the characters [._-] **')
         else:
             done = True
-    new_config['description'] = input('Description of this model: ')
-
+    new_config = {
+        'weights': model_path,
+        'description': input('Description of this model: '),
+    }
     completer.complete_extensions(('.yaml','.yml'))
     completer.linebuffer = 'configs/stable-diffusion/v1-inference.yaml'
-    
+
     done = False
     while not done:
         new_config['config'] = input('Configuration file for this model: ')
@@ -539,7 +536,7 @@ def add_weights_to_config(model_path:str, gen, opt, completer):
                 print('** Please enter a valid integer between 64 and 2048')
 
     make_default = input('Make this the default model? [n] ') in ('y','Y')
-    
+
     if write_config_file(opt.conf, gen, model_name, new_config, make_default=make_default):
         completer.add_model(model_name)
 
@@ -575,7 +572,7 @@ def edit_config(model_name:str, gen, opt, completer):
     
 def write_config_file(conf_path, gen, model_name, new_config, clobber=False, make_default=False):
     current_model = gen.model_name
-    
+
     op = 'modify' if clobber else 'import'
     print('\n>> New configuration:')
     if make_default:
@@ -589,7 +586,7 @@ def write_config_file(conf_path, gen, model_name, new_config, clobber=False, mak
         gen.model_cache.add_model(model_name, new_config, clobber)
         assert gen.set_model(model_name) is not None, 'model failed to load'
     except AssertionError as e:
-        print(f'** aborting **')
+        print('** aborting **')
         gen.model_cache.del_model(model_name)
         return False
 
@@ -598,11 +595,9 @@ def write_config_file(conf_path, gen, model_name, new_config, clobber=False, mak
         gen.model_cache.set_default_model(model_name)
 
     gen.model_cache.commit(conf_path)
-    
-    do_switch = input(f'Keep model loaded? [y]')
-    if len(do_switch)==0 or do_switch[0] in ('y','Y'):
-        pass
-    else:
+
+    do_switch = input('Keep model loaded? [y]')
+    if len(do_switch) != 0 and do_switch[0] not in ('y', 'Y'):
         gen.set_model(current_model)
     return True
 
@@ -622,13 +617,9 @@ def do_textmask(gen, opt, callback):
         callback = callback,
     )
 
-def do_postprocess (gen, opt, callback):
+def do_postprocess(gen, opt, callback):
     file_path = opt.prompt      # treat the prompt as the file pathname
-    if opt.new_prompt is not None:
-        opt.prompt = opt.new_prompt
-    else:
-        opt.prompt = None
-        
+    opt.prompt = opt.new_prompt if opt.new_prompt is not None else None
     if os.path.dirname(file_path) == '': #basename given
         file_path = os.path.join(opt.outdir,file_path)
 
@@ -723,14 +714,13 @@ def prepare_image_metadata(
     elif len(prior_variations) > 0:
         formatted_dream_prompt = opt.dream_prompt_str(seed=first_seed)
     elif operation == 'postprocess':
-        formatted_dream_prompt = '!fix '+opt.dream_prompt_str(seed=seed,prompt=opt.input_file_path)
+        formatted_dream_prompt = f'!fix {opt.dream_prompt_str(seed=seed, prompt=opt.input_file_path)}'
     else:
         formatted_dream_prompt = opt.dream_prompt_str(seed=seed)
     return filename,formatted_dream_prompt
 
 def choose_postprocess_name(opt,prefix,seed) -> str:
-    match      = re.search('postprocess:(\w+)',opt.last_operation)
-    if match:
+    if match := re.search('postprocess:(\w+)', opt.last_operation):
         modifier = match.group(1)   # will look like "gfpgan", "upscale", "outpaint" or "embiggen"
     else:
         modifier = 'postprocessed'
@@ -794,12 +784,7 @@ def split_variations(variations_string) -> list:
             broken = True
             break
         parts.append([seed, weight])
-    if broken:
-        return None
-    elif len(parts) == 0:
-        return None
-    else:
-        return parts
+    return None if broken or not parts else parts
 
 def load_face_restoration(opt):
     try:
@@ -817,7 +802,7 @@ def load_face_restoration(opt):
                 print('>> Upscaling disabled')
         else:
             print('>> Face restoration and upscaling disabled')
-    except (ModuleNotFoundError, ImportError):
+    except ImportError:
         print(traceback.format_exc(), file=sys.stderr)
         print('>> You may need to install the ESRGAN and/or GFPGAN modules')
     return gfpgan,codeformer,esrgan
@@ -849,11 +834,7 @@ def retrieve_dream_command(opt,command,completer):
 
     tokens = command.split()
     dir,basename = os.path.split(tokens[0])
-    if len(dir) == 0:
-        path = os.path.join(opt.outdir,basename)
-    else:
-        path = tokens[0]
-
+    path = os.path.join(opt.outdir,basename) if len(dir) == 0 else tokens[0]
     if len(tokens) > 1:
         return write_commands(opt, path, tokens[1])
 
@@ -876,7 +857,7 @@ def write_commands(opt, file_path:str, outfilepath:str):
     except ValueError:
         print(f'## "{basename}": unacceptable pattern')
         return
- 
+
     commands = []
     cmd = None
     for path in paths:
@@ -887,9 +868,8 @@ def write_commands(opt, file_path:str, outfilepath:str):
         except:
             print(f'## {path}: file could not be processed')
         if cmd:
-            commands.append(f'# {path}')
-            commands.append(cmd)
-    if len(commands)>0:
+            commands.extend((f'# {path}', cmd))
+    if commands:
         dir,basename = os.path.split(outfilepath)
         if len(dir)==0:
             outfilepath = os.path.join(opt.outdir,basename)
@@ -925,7 +905,9 @@ def emergency_model_create(opt:Args):
         f.write(f'  height: 512\n')
         f.write(f'  default: true\n')
     print(f'Config file {opt.conf} is created. This script will now exit.')
-    print(f'After restarting you may examine the entry with !models and edit it with !edit.')
+    print(
+        'After restarting you may examine the entry with !models and edit it with !edit.'
+    )
     
 ######################################
 

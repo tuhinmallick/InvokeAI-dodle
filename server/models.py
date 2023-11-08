@@ -139,8 +139,7 @@ class DreamResult(DreamBase):
   def to_json(self):
     copy = deepcopy(self)
     copy.initimg = None
-    j = json.dumps(copy.__dict__)
-    return j
+    return json.dumps(copy.__dict__)
 
   @staticmethod
   def from_json(j, newTime: bool = False):

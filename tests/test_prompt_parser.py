@@ -8,10 +8,7 @@ from ldm.invoke.prompt_parser import PromptParser, Blend, Conjunction, Flattened
 
 def parse_prompt(prompt_string):
     pp = PromptParser()
-    #print(f"parsing '{prompt_string}'")
-    parse_result = pp.parse_conjunction(prompt_string)
-    #print(f"-> parsed '{prompt_string}' to {parse_result}")
-    return parse_result
+    return pp.parse_conjunction(prompt_string)
 
 def make_basic_conjunction(strings: list[str]):
     fragments = [Fragment(x) for x in strings]
@@ -492,7 +489,6 @@ class PromptParserTestCase(unittest.TestCase):
                                                        ])
                                       ], weights=[0.5, 0.5]),
                          parse_prompt("(\"mountain man\", \"a person with a hat (riding a bicycle.swap(skateboard))++\").and(0.5, 0.5)"))
-        pass
 
 
 if __name__ == '__main__':

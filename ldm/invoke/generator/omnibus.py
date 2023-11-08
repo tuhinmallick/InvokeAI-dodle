@@ -53,7 +53,7 @@ class Omnibus(Img2Img,Txt2Img):
 
         if init_image is not None and mask_image is not None: # inpainting
             masked_image = init_image * (1 - mask_image)  # masked image is the image masked by mask - masked regions zero
-            
+
         elif init_image is not None: # img2img
             scope = choose_autocast(self.precision)
 
@@ -90,9 +90,9 @@ class Omnibus(Img2Img,Txt2Img):
                         device=model.device,
                         num_samples=num_samples,
                     )
-                    
+
                     c = model.cond_stage_model.encode(batch["txt"])
-                    c_cat = list()
+                    c_cat = []
                     for ck in model.concat_keys:
                         cc = batch[ck].float()
                         if ck != model.masked_image_key:
@@ -138,13 +138,18 @@ class Omnibus(Img2Img,Txt2Img):
             prompt,
             device,
             num_samples=1):
-        batch = {
-                "image": repeat(image.to(device=device), "1 ... -> n ...", n=num_samples),
-                "txt": num_samples * [prompt],
-                "mask": repeat(mask.to(device=device), "1 ... -> n ...", n=num_samples),
-                "masked_image": repeat(masked_image.to(device=device), "1 ... -> n ...", n=num_samples),
-                }
-        return batch
+        return {
+            "image": repeat(
+                image.to(device=device), "1 ... -> n ...", n=num_samples
+            ),
+            "txt": num_samples * [prompt],
+            "mask": repeat(
+                mask.to(device=device), "1 ... -> n ...", n=num_samples
+            ),
+            "masked_image": repeat(
+                masked_image.to(device=device), "1 ... -> n ...", n=num_samples
+            ),
+        }
 
     def get_noise(self, width:int, height:int):
         if self.init_latent is not None:

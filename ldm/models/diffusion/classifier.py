@@ -87,7 +87,7 @@ class NoisyLatentImageClassifier(pl.LightningModule):
         for k in keys:
             for ik in ignore_keys:
                 if k.startswith(ik):
-                    print('Deleting key {} from state_dict.'.format(k))
+                    print(f'Deleting key {k} from state_dict.')
                     del sd[k]
         missing, unexpected = (
             self.load_state_dict(sd, strict=False)
@@ -172,13 +172,13 @@ class NoisyLatentImageClassifier(pl.LightningModule):
 
         if self.label_key == 'segmentation':
             targets = rearrange(targets, 'b h w c -> b c h w')
-            for down in range(self.numd):
+            for _ in range(self.numd):
                 h, w = targets.shape[-2:]
                 targets = F.interpolate(
                     targets, size=(h // 2, w // 2), mode='nearest'
                 )
 
-            # targets = rearrange(targets,'b c h w -> b h w c')
+                # targets = rearrange(targets,'b c h w -> b h w c')
 
         return targets
 
@@ -198,8 +198,7 @@ class NoisyLatentImageClassifier(pl.LightningModule):
     @torch.no_grad()
     def write_logs(self, loss, logits, targets):
         log_prefix = 'train' if self.training else 'val'
-        log = {}
-        log[f'{log_prefix}/loss'] = loss.mean()
+        log = {f'{log_prefix}/loss': loss.mean()}
         log[f'{log_prefix}/acc@1'] = self.compute_top_k(
             logits, targets, k=1, reduction='mean'
         )

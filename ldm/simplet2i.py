@@ -9,5 +9,7 @@ from ldm.generate import Generate
 
 class T2I(Generate):
     def __init__(self,**kwargs):
-        print(f'>> The ldm.simplet2i module is deprecated. Use ldm.generate instead. It is a drop-in replacement.')
+        print(
+            '>> The ldm.simplet2i module is deprecated. Use ldm.generate instead. It is a drop-in replacement.'
+        )
         super().__init__(kwargs)

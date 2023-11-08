@@ -64,8 +64,7 @@ def make_ddim_timesteps(
 ):
     if ddim_discr_method == 'uniform':
         c = num_ddpm_timesteps // num_ddim_timesteps
-        if c < 1:
-          c = 1
+        c = max(c, 1)
         ddim_timesteps = (np.arange(0, num_ddim_timesteps) * c).astype(int)
     elif ddim_discr_method == 'quad':
         ddim_timesteps = (
@@ -150,13 +149,7 @@ def checkpoint(func, inputs, params, flag):
                    explicitly take as arguments.
     :param flag: if False, disable gradient checkpointing.
     """
-    if (
-        False
-    ):   # disabled checkpointing to allow requires_grad = False for main model
-        args = tuple(inputs) + tuple(params)
-        return CheckpointFunction.apply(func, len(inputs), *args)
-    else:
-        return func(*inputs)
+    return func(*inputs)
 
 
 class CheckpointFunction(torch.autograd.Function):
