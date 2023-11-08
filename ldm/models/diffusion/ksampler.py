@@ -53,8 +53,7 @@ class CFGDenoiser(nn.Module):
             self.warmup += 1
         else:
             thresh = self.threshold
-        if thresh > self.threshold:
-            thresh = self.threshold
+        thresh = min(thresh, self.threshold)
         return cfg_apply_threshold(next_x, thresh)
 
 class KSampler(Sampler):
@@ -274,12 +273,9 @@ class KSampler(Sampler):
     # are at an intermediate step in img2img. See similar in
     # sample() which does work.
     def get_initial_image(self,x_T,shape,steps):
-        print(f'WARNING: ksampler.get_initial_image(): get_initial_image needs testing')
+        print('WARNING: ksampler.get_initial_image(): get_initial_image needs testing')
         x = (torch.randn(shape, device=self.device) * self.sigmas[0])
-        if x_T is not None:
-            return x_T + x
-        else:
-            return x
+        return x_T + x if x_T is not None else x
         
     def prepare_to_sample(self,t_enc,**kwargs):
         self.t_enc      = t_enc

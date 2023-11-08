@@ -14,7 +14,10 @@ def choose_precision(device) -> str:
     '''Returns an appropriate precision for the given torch device'''
     if device.type == 'cuda':
         device_name = torch.cuda.get_device_name(device)
-        if not ('GeForce GTX 1660' in device_name or 'GeForce GTX 1650' in device_name):
+        if (
+            'GeForce GTX 1660' not in device_name
+            and 'GeForce GTX 1650' not in device_name
+        ):
             return 'float16'
     return 'float32'
 
@@ -22,6 +25,4 @@ def choose_autocast(precision):
     '''Returns an autocast context or nullcontext for the given precision string'''
     # float16 currently requires autocast to avoid errors like:
     # 'expected scalar type Half but found Float'
-    if precision == 'autocast' or precision == 'float16':
-        return autocast
-    return nullcontext
+    return autocast if precision in ['autocast', 'float16'] else nullcontext

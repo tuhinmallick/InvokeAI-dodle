@@ -17,8 +17,7 @@ def hinge_d_loss_with_exemplar_weights(logits_real, logits_fake, weights):
     loss_fake = torch.mean(F.relu(1.0 + logits_fake), dim=[1, 2, 3])
     loss_real = (weights * loss_real).sum() / weights.sum()
     loss_fake = (weights * loss_fake).sum() / weights.sum()
-    d_loss = 0.5 * (loss_real + loss_fake)
-    return d_loss
+    return 0.5 * (loss_real + loss_fake)
 
 
 def adopt_weight(weight, global_step, threshold=0, value=0.0):
@@ -72,20 +71,15 @@ class VQLPIPSWithDiscriminator(nn.Module):
         assert pixel_loss in ['l1', 'l2']
         self.codebook_weight = codebook_weight
         self.pixel_weight = pixelloss_weight
-        if perceptual_loss == 'lpips':
-            print(f'{self.__class__.__name__}: Running with LPIPS.')
-            self.perceptual_loss = LPIPS().eval()
-        else:
+        if perceptual_loss != 'lpips':
             raise ValueError(
                 f'Unknown perceptual loss: >> {perceptual_loss} <<'
             )
+        print(f'{self.__class__.__name__}: Running with LPIPS.')
+        self.perceptual_loss = LPIPS().eval()
         self.perceptual_weight = perceptual_weight
 
-        if pixel_loss == 'l1':
-            self.pixel_loss = l1
-        else:
-            self.pixel_loss = l2
-
+        self.pixel_loss = l1 if pixel_loss == 'l1' else l2
         self.discriminator = NLayerDiscriminator(
             input_nc=disc_in_channels,
             n_layers=disc_num_layers,
@@ -189,14 +183,14 @@ class VQLPIPSWithDiscriminator(nn.Module):
             )
 
             log = {
-                '{}/total_loss'.format(split): loss.clone().detach().mean(),
-                '{}/quant_loss'.format(split): codebook_loss.detach().mean(),
-                '{}/nll_loss'.format(split): nll_loss.detach().mean(),
-                '{}/rec_loss'.format(split): rec_loss.detach().mean(),
-                '{}/p_loss'.format(split): p_loss.detach().mean(),
-                '{}/d_weight'.format(split): d_weight.detach(),
-                '{}/disc_factor'.format(split): torch.tensor(disc_factor),
-                '{}/g_loss'.format(split): g_loss.detach().mean(),
+                f'{split}/total_loss': loss.clone().detach().mean(),
+                f'{split}/quant_loss': codebook_loss.detach().mean(),
+                f'{split}/nll_loss': nll_loss.detach().mean(),
+                f'{split}/rec_loss': rec_loss.detach().mean(),
+                f'{split}/p_loss': p_loss.detach().mean(),
+                f'{split}/d_weight': d_weight.detach(),
+                f'{split}/disc_factor': torch.tensor(disc_factor),
+                f'{split}/g_loss': g_loss.detach().mean(),
             }
             if predicted_indices is not None:
                 assert self.n_classes is not None
@@ -233,8 +227,8 @@ class VQLPIPSWithDiscriminator(nn.Module):
             d_loss = disc_factor * self.disc_loss(logits_real, logits_fake)
 
             log = {
-                '{}/disc_loss'.format(split): d_loss.clone().detach().mean(),
-                '{}/logits_real'.format(split): logits_real.detach().mean(),
-                '{}/logits_fake'.format(split): logits_fake.detach().mean(),
+                f'{split}/disc_loss': d_loss.clone().detach().mean(),
+                f'{split}/logits_real': logits_real.detach().mean(),
+                f'{split}/logits_fake': logits_fake.detach().mean(),
             }
             return d_loss, log

@@ -62,8 +62,7 @@ class ClassEmbedder(nn.Module):
             key = self.key
         # this is for use in crossattn
         c = batch[key][:, None]
-        c = self.embedding(c)
-        return c
+        return self.embedding(c)
 
 
 class TransformerEmbedder(AbstractEncoder):
@@ -87,8 +86,7 @@ class TransformerEmbedder(AbstractEncoder):
 
     def forward(self, tokens):
         tokens = tokens.to(self.device)  # meh
-        z = self.transformer(tokens, return_embeddings=True)
-        return z
+        return self.transformer(tokens, return_embeddings=True)
 
     def encode(self, x):
         return self(x)
@@ -132,15 +130,12 @@ class BERTTokenizer(AbstractEncoder):
             padding='max_length',
             return_tensors='pt',
         )
-        tokens = batch_encoding['input_ids'].to(self.device)
-        return tokens
+        return batch_encoding['input_ids'].to(self.device)
 
     @torch.no_grad()
     def encode(self, text):
         tokens = self(text)
-        if not self.vq_interface:
-            return tokens
-        return None, None, [None, None, tokens]
+        return tokens if not self.vq_interface else (None, None, [None, None, tokens])
 
     def decode(self, text):
         return text
@@ -174,14 +169,10 @@ class BERTEmbedder(AbstractEncoder):
         )
 
     def forward(self, text, embedding_manager=None):
-        if self.use_tknz_fn:
-            tokens = self.tknz_fn(text)  # .to(self.device)
-        else:
-            tokens = text
-        z = self.transformer(
+        tokens = self.tknz_fn(text) if self.use_tknz_fn else text
+        return self.transformer(
             tokens, return_embeddings=True, embedding_manager=embedding_manager
         )
-        return z
 
     def encode(self, text, **kwargs):
         # output of length 77
@@ -223,7 +214,7 @@ class SpatialRescaler(nn.Module):
             )
 
     def forward(self, x):
-        for stage in range(self.n_stages):
+        for _ in range(self.n_stages):
             x = self.interpolator(x, scale_factor=self.multiplier)
 
         if self.remap_output:
@@ -449,9 +440,7 @@ class FrozenCLIPEmbedder(AbstractEncoder):
             return_tensors='pt',
         )
         tokens = batch_encoding['input_ids'].to(self.device)
-        z = self.transformer(input_ids=tokens, **kwargs)
-
-        return z
+        return self.transformer(input_ids=tokens, **kwargs)
 
     def encode(self, text, **kwargs):
         return self(text, **kwargs)
@@ -551,10 +540,7 @@ class WeightedFrozenCLIPEmbedder(FrozenCLIPEmbedder):
         # should have shape (B, 77, 768)
         #print(f"assembled all tokens into tensor of shape {batch_z.shape}")
 
-        if should_return_tokens:
-            return batch_z, batch_tokens
-        else:
-            return batch_z
+        return (batch_z, batch_tokens) if should_return_tokens else batch_z
 
     def get_tokens(self, fragments: list[str], include_start_and_end_markers: bool = True) -> list[list[int]]:
         tokens = self.tokenizer(
@@ -565,14 +551,11 @@ class WeightedFrozenCLIPEmbedder(FrozenCLIPEmbedder):
             padding='do_not_pad',
             return_tensors=None,  # just give me a list of ints
         )['input_ids']
-        if include_start_and_end_markers:
-            return tokens
-        else:
-            return [x[1:-1] for x in tokens]
+        return tokens if include_start_and_end_markers else [x[1:-1] for x in tokens]
 
 
     @classmethod
-    def apply_embedding_weights(self, embeddings: torch.Tensor, per_embedding_weights: list[float], normalize:bool) -> torch.Tensor:
+    def apply_embedding_weights(cls, embeddings: torch.Tensor, per_embedding_weights: list[float], normalize:bool) -> torch.Tensor:
         per_embedding_weights = torch.tensor(per_embedding_weights, dtype=embeddings.dtype, device=embeddings.device)
         if normalize:
             per_embedding_weights = per_embedding_weights / torch.sum(per_embedding_weights)
@@ -590,7 +573,7 @@ class WeightedFrozenCLIPEmbedder(FrozenCLIPEmbedder):
         :return:
         '''
         # empty is meaningful
-        if len(fragments) == 0 and len(weights) == 0:
+        if not fragments and not weights:
             fragments = ['']
             weights = [1]
         item_encodings = self.tokenizer(
@@ -752,9 +735,7 @@ class FrozenClipImageEmbedder(nn.Module):
             antialias=self.antialias,
         )
         x = (x + 1.0) / 2.0
-        # renormalize according to clip
-        x = kornia.enhance.normalize(x, self.mean, self.std)
-        return x
+        return kornia.enhance.normalize(x, self.mean, self.std)
 
     def forward(self, x):
         # x is assumed to be in range [-1,1]

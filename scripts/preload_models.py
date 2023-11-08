@@ -176,19 +176,15 @@ will be given the option to view and change your selections.
                 if Datasets[ds]['recommended']:
                     datasets[ds]=counter
                     counter += 1
-                
+
         print('The following weight files will be downloaded:')
         for ds in datasets:
             dflt = '*' if dflt is None else ''
             print(f'   [{datasets[ds]}] {ds}{dflt}')
         print("*default")
         ok_to_download = yes_or_no('Ok to download?')
-        if not ok_to_download:
-            if yes_or_no('Change your selection?'):
-                action = 'customized'
-                pass
-            else:
-                done = True
+        if not ok_to_download and yes_or_no('Change your selection?'):
+            action = 'customized'
         else:
             done = True
     return datasets if ok_to_download else None
@@ -257,8 +253,9 @@ def migrate_models_ckpt():
         return
     new_name = Datasets['stable-diffusion-1.4']['file']
     print('You seem to have the Stable Diffusion v4.1 "model.ckpt" already installed.')
-    rename = yes_or_no(f'Ok to rename it to "{new_name}" for future reference?')
-    if rename:
+    if rename := yes_or_no(
+        f'Ok to rename it to "{new_name}" for future reference?'
+    ):
         print(f'model.ckpt => {new_name}')
         os.replace(os.path.join(Model_dir,'model.ckpt'),os.path.join(Model_dir,new_name))
             
@@ -266,7 +263,7 @@ def migrate_models_ckpt():
 def download_weight_datasets(models:dict, access_token:str):
     migrate_models_ckpt()
     successful = dict()
-    for mod in models.keys():
+    for mod in models:
         repo_id = Datasets[mod]['repo_id']
         filename = Datasets[mod]['file']
         success = download_with_resume(
@@ -286,7 +283,7 @@ def download_weight_datasets(models:dict, access_token:str):
 
     HfFolder.save_token(access_token)
     keys = ', '.join(successful.keys())
-    print(f'Successfully installed {keys}') 
+    print(f'Successfully installed {keys}')
     return successful
     
 #---------------------------------------------
@@ -474,12 +471,12 @@ def download_gfpgan():
 def download_codeformer():
     print('Installing CodeFormer model file...',end='')
     try:
+        model_dest = 'ldm/invoke/restoration/codeformer/weights/codeformer.pth'
+        if not os.path.exists(model_dest):
+            print('Downloading codeformer model file...')
+            os.makedirs(os.path.dirname(model_dest), exist_ok=True)
             model_url  = 'https://github.com/sczhou/CodeFormer/releases/download/v0.1.0/codeformer.pth'
-            model_dest = 'ldm/invoke/restoration/codeformer/weights/codeformer.pth'
-            if not os.path.exists(model_dest):
-                print('Downloading codeformer model file...')
-                os.makedirs(os.path.dirname(model_dest), exist_ok=True)
-                request.urlretrieve(model_url,model_dest)
+            request.urlretrieve(model_url,model_dest)
     except Exception:
         print('Error loading CodeFormer:')
         print(traceback.format_exc())
@@ -490,13 +487,13 @@ def download_clipseg():
     print('Installing clipseg model for text-based masking...',end='')
     import zipfile
     try:
-        model_url  = 'https://owncloud.gwdg.de/index.php/s/ioHbRzFx6th32hn/download'
         model_dest = 'models/clipseg/clipseg_weights'
         weights_zip = 'models/clipseg/weights.zip'
-        
+
         if not os.path.exists(model_dest):
             os.makedirs(os.path.dirname(model_dest), exist_ok=True)
         if not os.path.exists(f'{model_dest}/rd64-uni-refined.pth'):
+            model_url  = 'https://owncloud.gwdg.de/index.php/s/ioHbRzFx6th32hn/download'
             request.urlretrieve(model_url,weights_zip)
             with zipfile.ZipFile(weights_zip,'r') as zip:
                 zip.extractall('models/clipseg')

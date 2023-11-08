@@ -19,7 +19,7 @@ def custom_to_pil(x):
     x = x.permute(1, 2, 0).numpy()
     x = (255 * x).astype(np.uint8)
     x = Image.fromarray(x)
-    if not x.mode == "RGB":
+    if x.mode != "RGB":
         x = x.convert("RGB")
     return x
 
@@ -249,7 +249,7 @@ if __name__ == "__main__":
     ckpt = None
 
     if not os.path.exists(opt.resume):
-        raise ValueError("Cannot find {}".format(opt.resume))
+        raise ValueError(f"Cannot find {opt.resume}")
     if os.path.isfile(opt.resume):
         # paths = opt.resume.split("/")
         try:

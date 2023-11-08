@@ -142,11 +142,8 @@ class Txt2Img2Img(Generator):
                 **kwargs
                 )
             return result[0][0]
-            
-        if sampler.uses_inpainting_model():
-            return inpaint_make_image
-        else:
-            return make_image
+
+        return inpaint_make_image if sampler.uses_inpainting_model() else make_image
 
     # returns a tensor filled with random numbers from a normal distribution
     def get_noise(self,width,height,scale = True):

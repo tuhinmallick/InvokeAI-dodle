@@ -78,13 +78,13 @@ class DreamServer(BaseHTTPRequestHandler):
             config = {
                 'gfpgan_model_exists': gfpgan_model_exists
             }
-            self.wfile.write(bytes("let config = " + json.dumps(config) + ";\n", "utf-8"))
+            self.wfile.write(bytes(f"let config = {json.dumps(config)}" + ";\n", "utf-8"))
         elif self.path == "/run_log.json":
             self.send_response(200)
             self.send_header("Content-type", "application/json")
             self.end_headers()
             output = []
-            
+
             log_file = os.path.join(self.outdir, "dream_web_log.txt")
             if os.path.exists(log_file):
                 with open(log_file, "r") as log:
@@ -103,7 +103,7 @@ class DreamServer(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(bytes('{}', 'utf8'))
         else:
-            path = "." + self.path
+            path = f".{self.path}"
             cwd = os.path.realpath(os.getcwd())
             is_in_cwd = os.path.commonprefix((os.path.realpath(path), cwd)) == cwd
             if not (is_in_cwd and os.path.exists(path)):
@@ -114,7 +114,7 @@ class DreamServer(BaseHTTPRequestHandler):
                 self.send_response(200)
                 self.send_header("Content-type", mime_type)
                 self.end_headers()
-                with open("." + self.path, "rb") as content:
+                with open(f".{self.path}", "rb") as content:
                     self.wfile.write(content.read())
             else:
                 self.send_response(404)
@@ -237,7 +237,7 @@ class DreamServer(BaseHTTPRequestHandler):
                     # Remove the temp file
                     os.remove("./img2img-tmp.png")
         except CanceledException:
-            print(f"Canceled.")
+            print("Canceled.")
             return
 
 

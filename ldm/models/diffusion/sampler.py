@@ -168,9 +168,8 @@ class Sampler(object):
                 cbs = ctmp.shape[0]
                 if cbs != batch_size:
                     print(f"Warning: Got {cbs} conditionings but batch-size is {batch_size}")
-            else:
-                if conditioning.shape[0] != batch_size:
-                    print(f"Warning: Got {conditioning.shape[0]} conditionings but batch-size is {batch_size}")
+            elif conditioning.shape[0] != batch_size:
+                print(f"Warning: Got {conditioning.shape[0]} conditionings but batch-size is {batch_size}")
 
         # check to see if make_schedule() has run, and if not, run it
         if self.ddim_timesteps is None:
@@ -381,10 +380,7 @@ class Sampler(object):
         return x_dec
 
     def get_initial_image(self,x_T,shape,timesteps=None):
-        if x_T is None:
-            return torch.randn(shape, device=self.device)
-        else:
-            return x_T
+        return torch.randn(shape, device=self.device) if x_T is None else x_T
     
     def p_sample(
             self,
@@ -443,7 +439,7 @@ class Sampler(object):
         after the sampler is instantiated. No type-checking performed
         here, so use with care!
         '''
-        for k in kwargs.keys():
+        for k in kwargs:
             try:
                 setattr(self,k,kwargs[k])
             except AttributeError:

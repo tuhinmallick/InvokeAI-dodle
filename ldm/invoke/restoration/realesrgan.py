@@ -9,17 +9,10 @@ class ESRGAN():
     def __init__(self, bg_tile_size=400) -> None:
         self.bg_tile_size = bg_tile_size
 
-        if not torch.cuda.is_available():  # CPU or MPS on M1
-            use_half_precision = False
-        else:
-            use_half_precision = True
+        use_half_precision = bool(torch.cuda.is_available())
 
     def load_esrgan_bg_upsampler(self):
-        if not torch.cuda.is_available():  # CPU or MPS on M1
-            use_half_precision = False
-        else:
-            use_half_precision = True
-
+        use_half_precision = bool(torch.cuda.is_available())
         from realesrgan.archs.srvgg_arch import SRVGGNetCompact
         from realesrgan import RealESRGANer
 
@@ -27,7 +20,7 @@ class ESRGAN():
         model_path = 'https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesr-general-x4v3.pth'
         scale = 4
 
-        bg_upsampler = RealESRGANer(
+        return RealESRGANer(
             scale=scale,
             model_path=model_path,
             model=model,
@@ -36,8 +29,6 @@ class ESRGAN():
             pre_pad=0,
             half=use_half_precision,
         )
-
-        return bg_upsampler
 
     def process(self, image, strength: float, seed: str = None, upsampler_scale: int = 2):
         with warnings.catch_warnings():

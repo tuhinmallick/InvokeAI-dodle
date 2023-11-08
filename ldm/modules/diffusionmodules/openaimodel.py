@@ -810,10 +810,7 @@ class UNetModel(nn.Module):
             h = th.cat([h, hs.pop()], dim=1)
             h = module(h, emb, context)
         h = h.type(x.dtype)
-        if self.predict_codebook_ids:
-            return self.id_predictor(h)
-        else:
-            return self.out(h)
+        return self.id_predictor(h) if self.predict_codebook_ids else self.out(h)
 
 
 class EncoderUNetModel(nn.Module):
@@ -1030,7 +1027,7 @@ class EncoderUNetModel(nn.Module):
         if self.pool.startswith('spatial'):
             results.append(h.type(x.dtype).mean(dim=(2, 3)))
             h = th.cat(results, axis=-1)
-            return self.out(h)
         else:
             h = h.type(x.dtype)
-            return self.out(h)
+
+        return self.out(h)

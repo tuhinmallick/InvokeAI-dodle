@@ -66,8 +66,12 @@ def get_uc_and_c_and_ec(prompt_string_uncleaned, model, log_tokens=False, skip_n
                                                                                 normalize=blend.normalize_weights)
     else:
         flattened_prompt: FlattenedPrompt = parsed_prompt
-        wants_cross_attention_control = type(flattened_prompt) is not Blend \
-                                        and any([issubclass(type(x), CrossAttentionControlledFragment) for x in flattened_prompt.children])
+        wants_cross_attention_control = type(
+            flattened_prompt
+        ) is not Blend and any(
+            issubclass(type(x), CrossAttentionControlledFragment)
+            for x in flattened_prompt.children
+        )
         if wants_cross_attention_control:
             original_prompt = FlattenedPrompt()
             edited_prompt = FlattenedPrompt()
@@ -170,7 +174,7 @@ def build_embeddings_and_tokens_for_flattened_prompt(model, flattened_prompt: Fl
 def get_tokens_length(model, fragments: list[Fragment]):
     fragment_texts = [x.text for x in fragments]
     tokens = model.cond_stage_model.get_tokens(fragment_texts, include_start_and_end_markers=False)
-    return sum([len(x) for x in tokens])
+    return sum(len(x) for x in tokens)
 
 def flatten_hybrid_conditioning(uncond, cond):
     '''

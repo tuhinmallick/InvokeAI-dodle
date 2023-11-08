@@ -70,7 +70,7 @@ class Generator():
         # There used to be an additional self.model.ema_scope() here, but it breaks
         # the inpaint-1.5 model. Not sure what it did.... ?
         with scope(self.model.device.type):
-            for n in trange(iterations, desc='Generating'):
+            for _ in trange(iterations, desc='Generating'):
                 x_T = None
                 if self.variation_amount > 0:
                     seed_everything(seed)

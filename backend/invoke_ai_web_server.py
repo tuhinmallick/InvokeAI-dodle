@@ -47,8 +47,8 @@ class InvokeAIWebServer:
         mimetypes.add_type("application/javascript", ".js")
         mimetypes.add_type("text/css", ".css")
         # Socket IO
-        logger = True if args.web_verbose else False
-        engineio_logger = True if args.web_verbose else False
+        logger = bool(args.web_verbose)
+        engineio_logger = bool(args.web_verbose)
         max_http_buffer_size = 10000000
 
         socketio_args = {
@@ -154,7 +154,7 @@ class InvokeAIWebServer:
     def load_socketio_listeners(self, socketio):
         @socketio.on("requestSystemConfig")
         def handle_request_capabilities():
-            print(f">> System config requested")
+            print(">> System config requested")
             config = self.get_system_config()
             socketio.emit("systemConfig", config)
 
@@ -442,7 +442,7 @@ class InvokeAIWebServer:
 
         @socketio.on("cancel")
         def handle_cancel():
-            print(f">> Cancel processing requested")
+            print(">> Cancel processing requested")
             self.canceled.set()
 
         # TODO: I think this needs a safety mechanism.
@@ -840,7 +840,6 @@ class InvokeAIWebServer:
             raise
         except CanceledException:
             self.socketio.emit("processingCanceled")
-            pass
         except Exception as e:
             print(e)
             self.socketio.emit("error", {"message": (str(e))})
@@ -905,9 +904,7 @@ class InvokeAIWebServer:
                     }
                 )
 
-            rfc_dict["postprocessing"] = (
-                postprocessing if len(postprocessing) > 0 else None
-            )
+            rfc_dict["postprocessing"] = postprocessing if postprocessing else None
 
             # semantic drift
             rfc_dict["sampler"] = parameters["sampler_name"]
@@ -1043,7 +1040,7 @@ class InvokeAIWebServer:
             if step_index:
                 filename += f".{step_index}"
             if postprocessing:
-                filename += f".postprocessed"
+                filename += ".postprocessed"
 
             filename += ".png"
 
@@ -1248,8 +1245,7 @@ Crops an image to a bounding box.
 def copy_image_from_bounding_box(image, x, y, width, height):
     with image as im:
         bounds = (x, y, x + width, y + height)
-        im_cropped = im.crop(bounds)
-        return im_cropped
+        return im.crop(bounds)
 
 
 """

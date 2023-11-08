@@ -126,10 +126,9 @@ class PersonalizedBase(Dataset):
         return self._length
 
     def __getitem__(self, i):
-        example = {}
         image = Image.open(self.image_paths[i % self.num_images])
 
-        if not image.mode == 'RGB':
+        if image.mode != 'RGB':
             image = image.convert('RGB')
 
         if self.per_image_tokens and np.random.uniform() < 0.25:
@@ -141,8 +140,7 @@ class PersonalizedBase(Dataset):
                 self.placeholder_token
             )
 
-        example['caption'] = text
-
+        example = {'caption': text}
         # default to score-sde preprocessing
         img = np.array(image).astype(np.uint8)
 

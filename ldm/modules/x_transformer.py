@@ -471,7 +471,7 @@ class AttentionLayers(nn.Module):
 
         if cross_attend and not only_cross:
             default_block = ('a', 'c', 'f')
-        elif cross_attend and only_cross:
+        elif cross_attend:
             default_block = ('c', 'f')
         else:
             default_block = ('a', 'f')
@@ -529,11 +529,7 @@ class AttentionLayers(nn.Module):
             if isinstance(layer, Attention) and exists(branch_fn):
                 layer = branch_fn(layer)
 
-            if gate_residual:
-                residual_fn = GRUGating(dim)
-            else:
-                residual_fn = Residual()
-
+            residual_fn = GRUGating(dim) if gate_residual else Residual()
             self.layers.append(nn.ModuleList([norm_fn(), layer, residual_fn]))
 
     def forward(

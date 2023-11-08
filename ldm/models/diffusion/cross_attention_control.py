@@ -23,9 +23,9 @@ class CrossAttentionControl:
 
             if edited_conditioning is not None:
                 assert len(edit_opcodes) == len(edit_options), \
-                        "there must be 1 edit_options dict for each edit_opcodes tuple"
+                                "there must be 1 edit_options dict for each edit_opcodes tuple"
                 non_none_edit_options = [x for x in edit_options if x is not None]
-                assert len(non_none_edit_options)>0, "missing edit_options"
+                assert non_none_edit_options, "missing edit_options"
                 if len(non_none_edit_options)>1:
                     print('warning: cross-attention control options are not working properly for >1 edit')
                 self.edit_options = non_none_edit_options[0]
@@ -90,8 +90,7 @@ class CrossAttentionControl:
                 return self.tokens_cross_attention_action == CrossAttentionControl.Context.Action.APPLY
             return False
 
-        def get_active_cross_attention_control_types_for_step(self, percent_through:float=None)\
-                -> list['CrossAttentionControl.CrossAttentionType']:
+        def get_active_cross_attention_control_types_for_step(self, percent_through:float=None) -> list['CrossAttentionControl.CrossAttentionType']:
             """
             Should cross-attention control be applied on the given step?
             :param percent_through: How far through the step sequence are we (0.0=pure noise, 1.0=completely denoised image). Expected range 0.0..<1.0.
@@ -102,9 +101,9 @@ class CrossAttentionControl:
 
             opts = self.arguments.edit_options
             to_control = []
-            if opts['s_start'] <= percent_through and percent_through < opts['s_end']:
+            if opts['s_start'] <= percent_through < opts['s_end']:
                 to_control.append(CrossAttentionControl.CrossAttentionType.SELF)
-            if opts['t_start'] <= percent_through and percent_through < opts['t_end']:
+            if opts['t_start'] <= percent_through < opts['t_end']:
                 to_control.append(CrossAttentionControl.CrossAttentionType.TOKENS)
             return to_control
 
@@ -132,7 +131,7 @@ class CrossAttentionControl:
                         f"slice_size mismatch: expected slice_size={slice_size}, have {saved_attention_dict['slice_size']}")
                 return saved_attention_dict['slices'][requested_offset]
 
-            if saved_attention_dict['dim'] == None:
+            if saved_attention_dict['dim'] is None:
                 whole_saved_attention = saved_attention_dict['slices'][0]
                 if requested_dim == 0:
                     return whole_saved_attention[requested_offset:requested_offset + slice_size]

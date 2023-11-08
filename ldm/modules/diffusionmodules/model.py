@@ -49,8 +49,12 @@ class Upsample(nn.Module):
                                         padding=1)
 
     def forward(self, x):
-        cpu_m1_cond = True if hasattr(torch.backends, 'mps') and torch.backends.mps.is_available() and \
-                              x.size()[0] * x.size()[1] * x.size()[2] * x.size()[3] % 2**27 == 0 else False
+        cpu_m1_cond = bool(
+            hasattr(torch.backends, 'mps')
+            and torch.backends.mps.is_available()
+            and x.size()[0] * x.size()[1] * x.size()[2] * x.size()[3] % 2**27
+            == 0
+        )
         if cpu_m1_cond:
             x = x.to('cpu')  # send to cpu
         x = torch.nn.functional.interpolate(x, scale_factor=2.0, mode="nearest")
@@ -144,11 +148,7 @@ class ResnetBlock(nn.Module):
         h = self.conv2(h)
 
         if self.in_channels != self.out_channels:
-            if self.use_conv_shortcut:
-                x = self.conv_shortcut(x)
-            else:
-                x = self.nin_shortcut(x)
-
+            x = self.conv_shortcut(x) if self.use_conv_shortcut else self.nin_shortcut(x)
         return x + h
 
 class LinAttnBlock(LinearAttention):
@@ -216,19 +216,18 @@ class AttnBlock(nn.Module):
 
             tensor_size = q.shape[0] * q.shape[1] * k.shape[2] * 4
             mem_required = tensor_size * 2.5
-            steps = 1
-
-            if mem_required > mem_free_total:
-                steps = 2**(math.ceil(math.log(mem_required / mem_free_total, 2)))
-            
+            steps = (
+                2 ** (math.ceil(math.log(mem_required / mem_free_total, 2)))
+                if mem_required > mem_free_total
+                else 1
+            )
             slice_size = q.shape[1] // steps if (q.shape[1] % steps) == 0 else q.shape[1]
 
+        elif psutil.virtual_memory().available / (1024**3) < 12:
+            slice_size = 1
         else:
-            if psutil.virtual_memory().available / (1024**3) < 12:
-                slice_size = 1
-            else:
-                slice_size = min(q.shape[1], math.floor(2**30 / (q.shape[0] * q.shape[1])))
-        
+            slice_size = min(q.shape[1], math.floor(2**30 / (q.shape[0] * q.shape[1])))
+
         for i in range(0, q.shape[1], slice_size):
             end = i + slice_size
 
@@ -307,7 +306,7 @@ class Model(nn.Module):
             attn = nn.ModuleList()
             block_in = ch*in_ch_mult[i_level]
             block_out = ch*ch_mult[i_level]
-            for i_block in range(self.num_res_blocks):
+            for _ in range(self.num_res_blocks):
                 block.append(ResnetBlock(in_channels=block_in,
                                          out_channels=block_out,
                                          temb_channels=self.temb_ch,
@@ -450,7 +449,7 @@ class Encoder(nn.Module):
             attn = nn.ModuleList()
             block_in = ch*in_ch_mult[i_level]
             block_out = ch*ch_mult[i_level]
-            for i_block in range(self.num_res_blocks):
+            for _ in range(self.num_res_blocks):
                 block.append(ResnetBlock(in_channels=block_in,
                                          out_channels=block_out,
                                          temb_channels=self.temb_ch,
@@ -535,8 +534,9 @@ class Decoder(nn.Module):
         block_in = ch*ch_mult[self.num_resolutions-1]
         curr_res = resolution // 2**(self.num_resolutions-1)
         self.z_shape = (1,z_channels,curr_res,curr_res)
-        print("   | Working with z of shape {} = {} dimensions.".format(
-            self.z_shape, np.prod(self.z_shape)))
+        print(
+            f"   | Working with z of shape {self.z_shape} = {np.prod(self.z_shape)} dimensions."
+        )
 
         # z to block_in
         self.conv_in = torch.nn.Conv2d(z_channels,
@@ -563,7 +563,7 @@ class Decoder(nn.Module):
             block = nn.ModuleList()
             attn = nn.ModuleList()
             block_out = ch*ch_mult[i_level]
-            for i_block in range(self.num_res_blocks+1):
+            for _ in range(self.num_res_blocks+1):
                 block.append(ResnetBlock(in_channels=block_in,
                                          out_channels=block_out,
                                          temb_channels=self.temb_ch,
@@ -653,11 +653,7 @@ class SimpleDecoder(nn.Module):
 
     def forward(self, x):
         for i, layer in enumerate(self.model):
-            if i in [1,2,3]:
-                x = layer(x, None)
-            else:
-                x = layer(x)
-
+            x = layer(x, None) if i in [1,2,3] else layer(x)
         h = self.norm_out(x)
         h = silu(h)
         x = self.conv_out(h)
@@ -679,7 +675,7 @@ class UpsampleDecoder(nn.Module):
         for i_level in range(self.num_resolutions):
             res_block = []
             block_out = ch * ch_mult[i_level]
-            for i_block in range(self.num_res_blocks + 1):
+            for _ in range(self.num_res_blocks + 1):
                 res_block.append(ResnetBlock(in_channels=block_in,
                                          out_channels=block_out,
                                          temb_channels=self.temb_ch,
@@ -812,13 +808,6 @@ class Resize(nn.Module):
         if self.with_conv:
             print(f"Note: {self.__class__.__name} uses learned downsampling and will ignore the fixed {mode} mode")
             raise NotImplementedError()
-            assert in_channels is not None
-            # no asymmetric padding in torch conv, must do it ourselves
-            self.conv = torch.nn.Conv2d(in_channels,
-                                        in_channels,
-                                        kernel_size=4,
-                                        stride=2,
-                                        padding=1)
 
     def forward(self, x, scale_factor=1.0):
         if scale_factor==1.0:

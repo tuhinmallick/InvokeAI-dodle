@@ -114,13 +114,14 @@ class ImageStorageService:
   def save(self, image, dreamResult: DreamResult, postfix: str = '') -> str:
     name = self.__getName(dreamResult.id, postfix)
     meta = dreamResult.to_json() # TODO: make all methods consistent with writing metadata. Standardize metadata.
-    path = self.__pngWriter.save_image_and_prompt_to_png(image, dream_prompt=meta, metadata=None, name=name)
-    return path
+    return self.__pngWriter.save_image_and_prompt_to_png(image,
+                                                         dream_prompt=meta,
+                                                         metadata=None,
+                                                         name=name)
 
   def path(self, dreamId: str, postfix: str = '') -> str:
     name = self.__getName(dreamId, postfix)
-    path = os.path.join(self.__location, name)
-    return path
+    return os.path.join(self.__location, name)
   
   # Returns true if found, false if not found or error
   def delete(self, dreamId: str, postfix: str = '') -> bool:
@@ -135,31 +136,30 @@ class ImageStorageService:
     path = self.path(dreamId, postfix)
     image = Image.open(path)
     text = image.text
-    if text.__contains__('Dream'):
-      dreamMeta = text.get('Dream')
-      try:
-        j = json.loads(dreamMeta)
-        return DreamResult.from_json(j)
-      except ValueError:
-        # Try to parse command-line format (legacy metadata format)
-        try:
-          opt = self.__parseLegacyMetadata(dreamMeta)
-          optd = opt.__dict__
-          if (not 'width' in optd) or (optd.get('width') is None):
-            optd['width'] = image.width
-          if (not 'height' in optd) or (optd.get('height') is None):
-            optd['height'] = image.height
-          if (not 'steps' in optd) or (optd.get('steps') is None):
-            optd['steps'] = 10 # No way around this unfortunately - seems like it wasn't storing this previously
-
-          optd['time'] = os.path.getmtime(path) # Set timestamp manually (won't be exactly correct though)
-
-          return DreamResult.from_json(optd)
-
-        except:
-          return None
-    else:
+    if not text.__contains__('Dream'):
       return None
+    dreamMeta = text.get('Dream')
+    try:
+      j = json.loads(dreamMeta)
+      return DreamResult.from_json(j)
+    except ValueError:
+        # Try to parse command-line format (legacy metadata format)
+      try:
+        opt = self.__parseLegacyMetadata(dreamMeta)
+        optd = opt.__dict__
+        if 'width' not in optd or optd.get('width') is None:
+          optd['width'] = image.width
+        if 'height' not in optd or optd.get('height') is None:
+          optd['height'] = image.height
+        if 'steps' not in optd or optd.get('steps') is None:
+          optd['steps'] = 10 # No way around this unfortunately - seems like it wasn't storing this previously
+
+        optd['time'] = os.path.getmtime(path) # Set timestamp manually (won't be exactly correct though)
+
+        return DreamResult.from_json(optd)
+
+      except:
+        return None
 
   def __parseLegacyMetadata(self, command: str) -> DreamResult:
     # before splitting, escape single quotes so as not to mess
@@ -183,11 +183,10 @@ class ImageStorageService:
         else:
             switches[0] += el
             switches[0] += ' '
-    switches[0] = switches[0][: len(switches[0]) - 1]
+    switches[0] = switches[0][:-1]
 
     try:
-        opt = self.__legacyParser.parse_cmd(switches)
-        return opt
+      return self.__legacyParser.parse_cmd(switches)
     except SystemExit:
         return None
 
@@ -196,7 +195,7 @@ class ImageStorageService:
     count = len(files)
 
     startId = page * perPage
-    pageCount = int(count / perPage) + 1
+    pageCount = count // perPage + 1
     endId = min(startId + perPage, count)
     items = [] if startId >= count else files[startId:endId]
 
@@ -241,7 +240,7 @@ class GeneratorService:
     print('Preloading model')
     tic = time.time()
     self.__model.load_model()
-    print(f'>> model loaded in', '%4.2fs' % (time.time() - tic))
+    print('>> model loaded in', '%4.2fs' % (time.time() - tic))
 
     print('Started generation queue processor')
     try:

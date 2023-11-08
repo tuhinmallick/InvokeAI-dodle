@@ -316,7 +316,7 @@ class Generate:
             tile_size: int   = 32,
             force_outpaint: bool = False,
             **args,
-    ):   # eat up additional cruft
+    ):    # eat up additional cruft
         """
         ldm.generate.prompt2image() is the common entry point for txt2img() and img2img()
         It takes the following arguments:
@@ -400,18 +400,19 @@ class Generate:
                 0.0 <= perlin <= 1.0
         ), '--perlin must be in [0.0, 1.0]'
         assert (
-            (embiggen == None and embiggen_tiles == None) or (
-                (embiggen != None or embiggen_tiles != None) and init_img != None)
+            embiggen is None
+            and embiggen_tiles is None
+            or ((embiggen != None or embiggen_tiles != None) and init_img != None)
         ), 'Embiggen requires an init/input image to be specified'
 
         if len(with_variations) > 0 or variation_amount > 1.0:
             assert seed is not None,\
-                'seed must be specified when using with_variations'
+                    'seed must be specified when using with_variations'
             if variation_amount == 0.0:
                 assert iterations == 1,\
-                    'when using --with_variations, multiple iterations are only possible when using --variation_amount'
+                        'when using --with_variations, multiple iterations are only possible when using --variation_amount'
             assert all(0 <= weight <= 1 for _, weight in with_variations),\
-                f'variation weights must be in [0.0, 1.0]: got {[weight for _, weight in with_variations]}'
+                    f'variation weights must be in [0.0, 1.0]: got {[weight for _, weight in with_variations]}'
 
         width, height, _ = self._resolution_check(width, height, log=True)
         assert inpaint_replace >=0.0 and inpaint_replace <= 1.0,'inpaint_replace must be between 0.0 and 1.0'
@@ -429,7 +430,7 @@ class Generate:
         if self._has_cuda():
             torch.cuda.reset_peak_memory_stats()
 
-        results = list()
+        results = []
         init_image = None
         mask_image = None
 
@@ -529,7 +530,7 @@ class Generate:
         )
         if self._has_cuda():
             print(
-                f'>>   Max VRAM used for this generation:',
+                '>>   Max VRAM used for this generation:',
                 '%4.2fG.' % (torch.cuda.max_memory_allocated() / 1e9),
                 'Current VRAM utilization:',
                 '%4.2fG' % (torch.cuda.memory_allocated() / 1e9),
@@ -539,7 +540,7 @@ class Generate:
                 self.session_peakmem, torch.cuda.max_memory_allocated()
             )
             print(
-                f'>>   Max VRAM used since script start: ',
+                '>>   Max VRAM used since script start: ',
                 '%4.2fG' % (self.session_peakmem / 1e9),
             )
         return results
@@ -567,15 +568,14 @@ class Generate:
         seed = opt.seed or args.seed
         if seed is None or seed < 0:
             seed = random.randrange(0, np.iinfo(np.uint32).max)
-        
+
         prompt = opt.prompt or args.prompt or ''
         print(f'>> using seed {seed} and prompt "{prompt}" for {image_path}')
 
         # try to reuse the same filename prefix as the original file.
         # we take everything up to the first period
         prefix = None
-        m = re.match(r'^([^.]+)\.',os.path.basename(image_path))
-        if m:
+        if m := re.match(r'^([^.]+)\.', os.path.basename(image_path)):
             prefix = m.groups()[0]
 
         # face fixers and esrgan take an Image, but embiggen takes a path
@@ -611,16 +611,18 @@ class Generate:
         elif tool == 'outcrop':
             from ldm.invoke.restoration.outcrop import Outcrop
             extend_instructions = {}
-            for direction,pixels in _pairwise(opt.outcrop):
+            for direction, pixels in _pairwise(opt.outcrop):
                 try:
                     extend_instructions[direction]=int(pixels)
                 except ValueError:
-                    print(f'** invalid extension instruction. Use <directions> <pixels>..., as in "top 64 left 128 right 64 bottom 64"')
+                    print(
+                        '** invalid extension instruction. Use <directions> <pixels>..., as in "top 64 left 128 right 64 bottom 64"'
+                    )
 
             opt.seed = seed
             opt.prompt = prompt
-            
-            if len(extend_instructions) > 0:
+
+            if extend_instructions:
                 restorer = Outcrop(image,self,)
                 return restorer.process (
                     extend_instructions,
@@ -660,9 +662,9 @@ class Generate:
                 image_callback = callback,
                 prefix         = prefix
             )
-                
+
         elif tool is None:
-            print(f'* please provide at least one postprocessing option, such as -G or -U')
+            print('* please provide at least one postprocessing option, such as -G or -U')
             return None
         else:
             print(f'* postprocessing tool {tool} is not yet supported')
@@ -683,17 +685,14 @@ class Generate:
 
         if embiggen is not None:
             return self._make_embiggen()
-            
+
         if inpainting_model_in_use:
             return self._make_omnibus()
 
         if ((init_image is not None) and (mask_image is not None)) or force_outpaint:
             return self._make_inpaint()
-        
-        if init_image is not None:
-            return self._make_img2img()
 
-        return self._make_txt2img()
+        return self._make_img2img() if init_image is not None else self._make_txt2img()
 
     def _make_images(
             self,
@@ -807,7 +806,7 @@ class Generate:
         if not cache.valid_model(model_name):
             print(f'** "{model_name}" is not a known model name. Please check your models.yaml file')
             return self.model
-        
+
         cache.print_vram_usage()
 
         # have to get rid of all references to model in order
@@ -816,7 +815,7 @@ class Generate:
         self.sampler = None
         self.generators = {}
         gc.collect()
-        
+
         model_data = cache.get_model(model_name)
         if model_data is None:  # restore previous
             model_data = cache.get_model(self.model_name)
@@ -828,11 +827,11 @@ class Generate:
 
         # uncache generators so they pick up new models
         self.generators = {}
-        
+
         seed_everything(random.randrange(0, np.iinfo(np.uint32).max))
         if self.embedding_path is not None:
             self.model.embedding_manager.load(
-                self.embedding_path, self.precision == 'float32' or self.precision == 'autocast'
+                self.embedding_path, self.precision in ['float32', 'autocast']
             )
 
         self._set_sampler()
@@ -1035,7 +1034,7 @@ class Generate:
                 return True
         return False
 
-    def _check_for_erasure(self, image:Image.Image)->bool:
+    def _check_for_erasure(self, image:Image.Image) -> bool:
         if image.mode not in ('RGBA','RGB'):
             return False
         width, height = image.size
@@ -1045,8 +1044,7 @@ class Generate:
             for x in range(width):
                 if pixdata[x, y][3] == 0:
                     r, g, b, _ = pixdata[x, y]
-                    if (r, g, b) != (0, 0, 0) and \
-                       (r, g, b) != (255, 255, 255):
+                    if (r, g, b) not in [(0, 0, 0), (255, 255, 255)]:
                         colored += 1
         return colored == 0
 
@@ -1063,9 +1061,7 @@ class Generate:
 
     def _squeeze_image(self, image):
         x, y, resize_needed = self._resolution_check(image.width, image.height)
-        if resize_needed:
-            return InitImageResizer(image).resize(x, y)
-        return image
+        return InitImageResizer(image).resize(x, y) if resize_needed else image
 
     def _fit_image(self, image, max_dimensions):
         w, h = max_dimensions
@@ -1076,8 +1072,6 @@ class Generate:
             h = None   # by setting h to none, we tell InitImageResizer to fit into the width and calculate height
         elif image.height > image.width:
             w = None   # ditto for w
-        else:
-            pass
         # note that InitImageResizer does the multiple of 64 truncation internally
         image = InitImageResizer(image).resize(w, h)
         print(
